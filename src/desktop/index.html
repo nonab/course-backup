@@ -1,0 +1,1531 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="icon.png">
+  <title>Course Backup - Course Migration Tool</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Tailwind Config -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Custom CSS for frameless window, crisp surfaces, and typography -->
+  <style>
+    :root {
+      --app-bg: #090d16;
+      --card-bg: #0d1321;
+      --input-bg: #080c14;
+      --border-color: #1e293b;
+    }
+
+    body {
+      background-color: var(--app-bg);
+      color: #e2e8f0;
+      user-select: none;
+      -webkit-user-select: none;
+      font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    }
+
+    .app-drag {
+      -webkit-app-region: drag;
+    }
+
+    .no-drag {
+      -webkit-app-region: no-drag;
+    }
+
+    .select-text {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 4px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+
+    /* Style active custom radio cards */
+    label:has(input[type="radio"]:checked) {
+      border-color: #6366f1 !important;
+      background-color: rgba(99, 102, 241, 0.08) !important;
+    }
+
+    label:has(input[type="radio"]:checked) .radio-dot {
+      display: block !important;
+    }
+
+    label:has(input[type="radio"]:checked) .radio-indicator {
+      border-color: #6366f1 !important;
+    }
+  </style>
+</head>
+
+<body class="h-full text-slate-100 flex flex-col overflow-hidden font-sans bg-[#090d16]">
+
+  <!-- Header -->
+  <header
+    class="h-[42px] flex items-center justify-between px-4 border-b border-slate-800 bg-[#090d16] select-none shrink-0">
+    <div class="flex items-center gap-2.5 min-w-0">
+      <img src="icon.png" class="w-6 h-6 rounded-md object-contain shrink-0 pointer-events-none" alt="CB">
+      <div class="flex items-center gap-2 min-w-0">
+        <h1 class="text-sm font-semibold text-slate-200 tracking-tight shrink-0">Course Backup</h1>
+        <span class="text-xs text-slate-600 hidden sm:inline-block">·</span>
+        <span class="text-xs text-slate-400 hidden sm:inline-block truncate">Course Migration Tool</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-2.5 shrink-0">
+      <a href="https://ko-fi.com/nonab" target="_blank" title="Support project on Ko-fi"
+        class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-rose-500/30 bg-rose-950/20 hover:bg-rose-950/50 hover:border-rose-500/50 text-xs text-rose-300 hover:text-rose-200 transition-colors cursor-pointer">
+        <i data-lucide="coffee" class="w-3.5 h-3.5 text-rose-400"></i>
+        <span>Support</span>
+      </a>
+      <a href="https://play.google.com/store/apps/details?id=com.akademiapobierania.player&hl=pl" target="_blank"
+        class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-800 bg-slate-900/60 hover:bg-indigo-950/40 hover:border-indigo-500/40 text-xs text-slate-300 hover:text-indigo-300 transition-colors cursor-pointer">
+        <i data-lucide="smartphone" class="w-3.5 h-3.5 text-indigo-400"></i>
+        <span>Course Player</span>
+      </a>
+      <div class="flex items-center gap-1.5 text-xs text-slate-400 shrink-0 ml-1">
+        <span id="statusIndicator" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+        <span id="statusLabel" class="max-w-[140px] truncate font-medium text-slate-300">Ready to Backup</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Grid Area -->
+  <main class="flex-1 p-3 flex flex-col md:flex-row gap-3 min-h-0 overflow-hidden">
+
+    <!-- Left Column: Settings Form -->
+    <div class="w-full md:w-[410px] flex flex-col gap-2 shrink-0 min-h-0 overflow-y-auto custom-scrollbar pr-1">
+      <div class="bg-[#0d1321] border border-slate-800 rounded-lg p-3.5 flex flex-col gap-2.5 shadow-sm">
+
+        <!-- Backup Mode -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Backup Mode</label>
+          <div class="grid grid-cols-3 gap-1.5">
+            <!-- Option 1: JSON -->
+            <label
+              class="flex flex-col gap-1 p-2 rounded-md border border-slate-800 bg-[#080c14] hover:bg-slate-900/40 hover:border-slate-700 transition-colors cursor-pointer relative overflow-hidden group">
+              <input type="radio" name="archiveMode" value="json" checked class="sr-only">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-medium text-slate-200 group-hover:text-white transition-colors truncate">JSON
+                  Only</span>
+                <span
+                  class="radio-indicator w-3 h-3 rounded-full border border-slate-600 flex items-center justify-center bg-slate-950 group-hover:border-indigo-500 shrink-0">
+                  <span class="radio-dot w-1.5 h-1.5 rounded-full bg-indigo-500 hidden"></span>
+                </span>
+              </div>
+              <span class="text-[10px] text-slate-500 group-hover:text-slate-400 transition-colors truncate">Scrape
+                structure</span>
+            </label>
+
+            <!-- Option 2: Full -->
+            <label
+              class="flex flex-col gap-1 p-2 rounded-md border border-slate-800 bg-[#080c14] hover:bg-slate-900/40 hover:border-slate-700 transition-colors cursor-pointer relative overflow-hidden group">
+              <input type="radio" name="archiveMode" value="all" class="sr-only">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-medium text-slate-200 group-hover:text-white transition-colors truncate">Full
+                  Backup</span>
+                <span
+                  class="radio-indicator w-3 h-3 rounded-full border border-slate-600 flex items-center justify-center bg-slate-950 group-hover:border-indigo-500 shrink-0">
+                  <span class="radio-dot w-1.5 h-1.5 rounded-full bg-indigo-500 hidden"></span>
+                </span>
+              </div>
+              <span class="text-[10px] text-slate-500 group-hover:text-slate-400 transition-colors truncate">JSON +
+                media</span>
+            </label>
+
+            <!-- Option 3: From JSON -->
+            <label
+              class="flex flex-col gap-1 p-2 rounded-md border border-slate-800 bg-[#080c14] hover:bg-slate-900/40 hover:border-slate-700 transition-colors cursor-pointer relative overflow-hidden group">
+              <input type="radio" name="archiveMode" value="from-json" class="sr-only">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-medium text-slate-200 group-hover:text-white transition-colors truncate">From
+                  JSON</span>
+                <span
+                  class="radio-indicator w-3 h-3 rounded-full border border-slate-600 flex items-center justify-center bg-slate-950 group-hover:border-indigo-500 shrink-0">
+                  <span class="radio-dot w-1.5 h-1.5 rounded-full bg-indigo-500 hidden"></span>
+                </span>
+              </div>
+              <span class="text-[10px] text-slate-500 group-hover:text-slate-400 transition-colors truncate">Download
+                local</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Platform Scraping Section (Visible in 'json' and 'all' modes) -->
+        <div id="platformScrapeSection" class="flex flex-col gap-2.5">
+          <!-- Input URL -->
+          <div class="flex flex-col gap-1">
+            <label for="url" class="text-xs font-medium text-slate-300">Platform URL</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-500">
+                <i data-lucide="link" class="w-3.5 h-3.5"></i>
+              </span>
+              <input type="url" id="url" placeholder="https://your-platform.com"
+                class="w-full bg-[#080c14] border border-slate-800 rounded-md py-1.5 pl-8 pr-3 text-xs focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600 text-slate-200 select-text">
+            </div>
+            <!-- Live Platform Detection Badge -->
+            <div id="platformDetectionBadge"
+              class="hidden text-[11px] flex items-center gap-1.5 mt-0.5 font-medium text-emerald-400">
+              <i data-lucide="check-circle" class="w-3 h-3"></i>
+              <span id="platformDetectionName">Detected Platform</span>
+            </div>
+          </div>
+
+          <!-- Credentials -->
+          <div class="grid grid-cols-2 gap-2">
+            <div class="flex flex-col gap-1">
+              <label for="username" class="text-xs font-medium text-slate-300">Username / Email <span
+                  class="text-slate-500 text-[11px]">(Optional)</span></label>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-500">
+                  <i data-lucide="user" class="w-3.5 h-3.5"></i>
+                </span>
+                <input type="text" id="username" placeholder="name@email.com"
+                  class="w-full bg-[#080c14] border border-slate-800 rounded-md py-1.5 pl-8 pr-3 text-xs focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600 text-slate-200 select-text">
+              </div>
+            </div>
+            <div class="flex flex-col gap-1">
+              <label for="password" class="text-xs font-medium text-slate-300">Password <span
+                  class="text-slate-500 text-[11px]">(Optional)</span></label>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-500">
+                  <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                </span>
+                <input type="password" id="password" placeholder="••••••••"
+                  class="w-full bg-[#080c14] border border-slate-800 rounded-md py-1.5 pl-8 pr-3 text-xs focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600 text-slate-200 select-text">
+              </div>
+            </div>
+          </div>
+          <!-- Credentials Error / Pairing Warning -->
+          <div id="credentialsWarning" class="hidden text-[11px] text-amber-400 flex items-center gap-1.5 font-medium">
+            <i data-lucide="alert-circle" class="w-3.5 h-3.5 shrink-0"></i>
+            <span id="credentialsWarningText">Password is required when username/email is entered.</span>
+          </div>
+          <!-- Cookies-only platform notice (e.g. Skool) -->
+          <div id="cookiesOnlyNotice"
+            class="hidden text-[11px] text-indigo-300 bg-indigo-950/40 border border-indigo-500/20 rounded-md p-2 flex items-start gap-2 leading-relaxed">
+            <i data-lucide="info" class="w-3.5 h-3.5 text-indigo-400 mt-0.5 shrink-0"></i>
+            <span id="cookiesOnlyNoticeText">Skool uses Cloudflare protection. Credentials are disabled; session cookies
+              are required.</span>
+          </div>
+
+          <!-- Cookies File Selection -->
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium text-slate-300">Session Cookies <span
+                class="text-slate-500 text-[11px]">(Optional .json file)</span></label>
+            <div class="flex gap-1.5">
+              <div class="relative flex-1">
+                <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-500">
+                  <i data-lucide="cookie" class="w-3.5 h-3.5"></i>
+                </span>
+                <input type="text" id="cookiesPath" readonly placeholder="Auto-detect (cookies/<domain>*.json)"
+                  class="w-full bg-[#080c14] border border-slate-800 rounded-md py-1.5 pl-8 pr-3 text-xs focus:outline-none text-slate-400 select-none">
+              </div>
+              <button id="btnBrowseCookies" type="button"
+                class="px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-md text-xs font-medium transition-colors border border-slate-700 flex items-center justify-center shrink-0">
+                Browse
+              </button>
+            </div>
+            <!-- Live Auto-Detection / Status Badge -->
+            <div id="cookiesDetectedBadge" class="hidden text-[11px] flex items-center gap-1.5 font-medium">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5 shrink-0 text-emerald-400"></i>
+              <span id="cookiesDetectedText" class="truncate font-mono">Auto-detected: cookies/...</span>
+            </div>
+            <div class="flex items-center justify-between text-[11px] text-slate-400 px-0.5 leading-none mt-0.5">
+              <button id="btnOpenCookiesFolder" type="button"
+                class="text-indigo-400 hover:text-indigo-300 font-medium transition-colors flex items-center gap-1 cursor-pointer">
+                <i data-lucide="folder-open" class="w-3 h-3"></i>
+                <span>Open cookies folder</span>
+              </button>
+              <button id="btnResetCookies" type="button"
+                class="hidden text-slate-400 hover:text-slate-300 font-medium transition-colors">Reset to
+                auto-detect</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- From JSON Section (Visible ONLY in 'from-json' mode) -->
+        <div id="fromJsonSection" class="hidden flex flex-col gap-2.5">
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium text-slate-300">Course JSON Manifest <span
+                class="text-indigo-400">*</span></label>
+            <div class="flex gap-1.5">
+              <div class="relative flex-1">
+                <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-500">
+                  <i data-lucide="file-json" class="w-3.5 h-3.5"></i>
+                </span>
+                <input type="text" id="jsonManifestPath" readonly placeholder="Select course manifest JSON file..."
+                  class="w-full bg-[#080c14] border border-slate-800 rounded-md py-1.5 pl-8 pr-3 text-xs focus:outline-none text-slate-300 select-none">
+              </div>
+              <button id="btnBrowseJson" type="button"
+                class="px-3 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 rounded-md text-xs font-medium transition-colors border border-indigo-500/30 flex items-center justify-center gap-1.5 shrink-0">
+                <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+                Browse
+              </button>
+            </div>
+          </div>
+
+          <!-- Course detected badge in JSON mode -->
+          <div id="jsonCourseBadge"
+            class="hidden p-2 rounded-md bg-indigo-950/30 border border-indigo-500/20 flex items-center gap-2.5">
+            <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+            <div class="flex flex-col min-w-0 flex-1">
+              <span id="jsonCourseTitle" class="text-xs font-medium text-slate-200 truncate">Course Title</span>
+              <span id="jsonCourseLessons" class="text-[10px] text-slate-400 font-mono">0 lessons ready to
+                download</span>
+            </div>
+          </div>
+
+          <!-- Audio-only option for JSON mode -->
+          <div class="px-0.5 pt-0.5">
+            <label class="flex items-center gap-2 cursor-pointer select-none group">
+              <input type="checkbox" id="jsonAudioOnlyCheck"
+                class="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-950 border-slate-700 transition-colors cursor-pointer">
+              <span
+                class="text-xs text-slate-400 group-hover:text-slate-300 transition-colors flex items-center gap-1.5">
+                <i data-lucide="headphones"
+                  class="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-400 transition-colors"></i>
+                Extract audio only (MP3)
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Destination Path -->
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-300">Backup Directory</label>
+          <div class="flex gap-1.5">
+            <div class="relative flex-1">
+              <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-500">
+                <i data-lucide="folder" class="w-3.5 h-3.5"></i>
+              </span>
+              <input type="text" id="downloadPath" readonly placeholder="Default (project-root/output)"
+                class="w-full bg-[#080c14] border border-slate-800 rounded-md py-1.5 pl-8 pr-3 text-xs focus:outline-none text-slate-400 select-none">
+            </div>
+            <button id="btnBrowse" type="button"
+              class="px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-md text-xs font-medium transition-colors border border-slate-700 flex items-center justify-center shrink-0">
+              Browse
+            </button>
+          </div>
+          <div class="flex justify-end text-[10px] text-slate-500 px-0.5 leading-none">
+            <button id="btnResetPath" type="button"
+              class="hidden text-indigo-400 hover:text-indigo-300 font-medium transition-colors">Reset to
+              default</button>
+          </div>
+        </div>
+
+        <!-- Browser Visibility Option (Scraping only) -->
+        <div id="headfulOptionWrapper" class="px-0.5">
+          <label class="flex items-center gap-2 cursor-pointer select-none group">
+            <input type="checkbox" id="headfulCheck"
+              class="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-950 border-slate-700 transition-colors cursor-pointer">
+            <span class="text-xs text-slate-400 group-hover:text-slate-300 transition-colors flex items-center gap-1.5">
+              <i data-lucide="eye" class="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-400 transition-colors"></i>
+              Show browser window (headful mode)
+            </span>
+          </label>
+        </div>
+
+        <!-- Creator Authorization Checkbox -->
+        <div class="p-2 rounded-md bg-slate-900/60 border border-slate-800">
+          <label class="flex items-start gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="eulaCheck"
+              class="mt-0.5 w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-950 border-slate-700 transition-colors cursor-pointer shrink-0">
+            <span class="text-xs leading-normal text-slate-400">
+              I confirm that I am creator of this content
+            </span>
+          </label>
+        </div>
+
+        <!-- Action Button -->
+        <button id="btnStart" disabled
+          class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:bg-slate-800/80 disabled:text-slate-500 disabled:border-slate-800 text-white font-medium rounded-md text-xs transition-colors border border-indigo-500/40 flex items-center justify-center gap-1.5 cursor-pointer">
+          <i id="btnStartIcon" data-lucide="play" class="w-3.5 h-3.5"></i>
+          <span id="btnStartText">Start Backup</span>
+        </button>
+      </div>
+
+      <!-- Footer Note -->
+      <div class="px-1 text-[10px] text-slate-500 leading-normal flex items-center justify-between">
+        <span>Open-source engine by <a href="https://github.com/nonab" target="_blank"
+            class="text-slate-400 hover:text-indigo-300 transition-colors font-medium">nonab</a></span>
+        <a href="https://github.com/nonab/course-backup/blob/main/LICENSE" target="_blank"
+          class="text-slate-500 hover:text-slate-400 transition-colors">MIT License</a>
+      </div>
+    </div>
+
+    <!-- Right Column: Console Terminal -->
+    <div class="flex-1 flex flex-col min-h-0 bg-[#0d1321] rounded-lg border border-slate-800 overflow-hidden shadow-sm">
+      <!-- Terminal Header -->
+      <div class="px-3.5 py-2 bg-[#090d16] border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span>
+          <span class="text-xs font-mono text-slate-400">BACKUP_CONSOLE.LOG</span>
+        </div>
+        <button id="btnClearConsole"
+          class="text-xs text-slate-500 hover:text-slate-300 font-medium transition-colors flex items-center gap-1.5">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear logs
+        </button>
+      </div>
+
+      <!-- Terminal Logs -->
+      <div id="consoleLog"
+        class="flex-1 p-3.5 font-mono text-[11px] leading-relaxed overflow-y-auto custom-scrollbar flex flex-col gap-1 bg-[#060910] select-text">
+        <div class="text-slate-600">// Welcome to Course Backup. Configure settings on the left to begin...</div>
+      </div>
+
+      <!-- Terminal Progress Bar -->
+      <div class="px-3.5 py-2.5 bg-[#090d16] border-t border-slate-800 shrink-0">
+        <div class="flex justify-between items-center mb-1.5 text-xs">
+          <span class="text-slate-400">Progress</span>
+          <span id="progressPercent" class="font-medium text-indigo-400 font-mono">0%</span>
+        </div>
+        <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+          <div id="progressBar" class="bg-indigo-500 h-full rounded-full w-0 transition-all duration-200"></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Prompt Modal Backdrop -->
+  <div id="promptModal"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm transition-all duration-200">
+    <!-- Modal Container -->
+    <div
+      class="bg-[#0d1321] border border-slate-800 rounded-lg p-5 w-[460px] max-h-[85vh] shadow-xl flex flex-col gap-3.5 relative overflow-hidden">
+      <!-- Icon & Header -->
+      <div class="flex items-center gap-3 relative shrink-0">
+        <div
+          class="w-9 h-9 rounded-md bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+          <i data-lucide="layers" class="w-4 h-4"></i>
+        </div>
+        <div>
+          <h3 id="modalTitle" class="text-xs font-semibold text-slate-200">Select Courses to Backup</h3>
+          <p id="modalSubtitle" class="text-[11px] text-slate-400">Choose one or more courses to export.</p>
+        </div>
+      </div>
+
+      <!-- Course Selection Area -->
+      <div id="modalCourseArea" class="flex flex-col min-h-0 relative">
+        <!-- Injected via JavaScript dynamically -->
+      </div>
+
+      <!-- Manual Input & Optional Question -->
+      <div class="flex flex-col gap-2 shrink-0 border-t border-slate-800 pt-3">
+        <p id="modalPromptQuestion"
+          class="hidden text-[10px] text-slate-400 leading-relaxed max-h-12 overflow-y-auto custom-scrollbar select-text">
+        </p>
+        <div class="relative">
+          <input type="text" id="modalPromptInput" placeholder="Selected ID(s) or 0 for all..."
+            class="w-full bg-[#080c14] border border-slate-800 rounded-md px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-200 placeholder-slate-500 font-mono select-text">
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex justify-end gap-2 shrink-0">
+        <button id="btnModalCancel"
+          class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-md text-xs font-medium transition-colors">
+          Cancel
+        </button>
+        <button id="btnModalSubmit"
+          class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-md text-xs font-medium transition-colors">
+          Confirm Selection
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Completion & Batch Downloader Modal -->
+  <div id="completeModal"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm transition-all duration-200">
+    <div
+      class="bg-[#0d1321] border border-slate-800 rounded-lg p-5 w-[460px] shadow-xl flex flex-col gap-3.5 relative overflow-hidden">
+      <!-- Icon & Header -->
+      <div class="flex items-center gap-3 relative shrink-0">
+        <div
+          class="w-9 h-9 rounded-md bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+          <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+        </div>
+        <div>
+          <h3 class="text-xs font-semibold text-slate-200">Migration Backup Complete!</h3>
+          <p id="completeSubtitle" class="text-[11px] text-slate-400">Structure, lesson HTML, and materials have been
+            saved.</p>
+        </div>
+      </div>
+
+      <!-- Content Details -->
+      <div
+        class="flex flex-col gap-2 p-3 bg-[#080c14] border border-slate-800 rounded-md text-xs text-slate-300 select-text">
+        <div class="flex items-start justify-between gap-2">
+          <span class="text-slate-400 shrink-0">Courses Backed Up:</span>
+          <span id="completeCoursesList"
+            class="font-medium text-[11px] text-slate-200 text-right truncate max-w-[250px]">...</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400">Output Folder:</span>
+          <span id="completeOutputDir" class="font-mono text-[11px] text-slate-300 truncate max-w-[240px]">...</span>
+        </div>
+        <div id="completeBatchInfo" class="hidden flex flex-col gap-1 pt-1.5 border-t border-slate-800">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400">Video Downloads:</span>
+            <span id="completeBatchText" class="text-[11px] text-indigo-300 font-mono">...</span>
+          </div>
+          <p class="text-[10px] text-slate-500">You can download videos right now in the app, or run the script later.
+          </p>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center justify-end gap-2 pt-1 shrink-0">
+        <button id="btnCompleteClose"
+          class="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white rounded-md transition-colors">
+          Close
+        </button>
+        <button id="btnCompleteOpenFolder"
+          class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-md border border-slate-700 transition-colors flex items-center gap-1.5">
+          <i data-lucide="folder" class="w-3.5 h-3.5 text-indigo-400"></i>
+          <span>Open Folder</span>
+        </button>
+        <button id="btnCompleteRunDownload"
+          class="hidden px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-xs font-medium rounded-md transition-colors flex items-center gap-1.5">
+          <i data-lucide="play" class="w-3.5 h-3.5"></i>
+          <span>Download Videos in App</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lucide Script -->
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // DOM Elements
+    const btnBrowse = document.getElementById('btnBrowse');
+    const downloadPathInput = document.getElementById('downloadPath');
+    const btnBrowseCookies = document.getElementById('btnBrowseCookies');
+    const cookiesPathInput = document.getElementById('cookiesPath');
+    const btnResetCookies = document.getElementById('btnResetCookies');
+    const platformBadge = document.getElementById('platformDetectionBadge');
+    const platformName = document.getElementById('platformDetectionName');
+    const urlInput = document.getElementById('url');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const eulaCheck = document.getElementById('eulaCheck');
+    const btnStart = document.getElementById('btnStart');
+    const consoleLog = document.getElementById('consoleLog');
+    const progressBar = document.getElementById('progressBar');
+    const progressPercent = document.getElementById('progressPercent');
+    const statusLabel = document.getElementById('statusLabel');
+    const statusIndicator = document.getElementById('statusIndicator');
+    const cookiesOnlyNotice = document.getElementById('cookiesOnlyNotice');
+    const cookiesOnlyNoticeText = document.getElementById('cookiesOnlyNoticeText');
+    const cookiesDetectedBadge = document.getElementById('cookiesDetectedBadge');
+    const cookiesDetectedText = document.getElementById('cookiesDetectedText');
+    const btnOpenCookiesFolder = document.getElementById('btnOpenCookiesFolder');
+
+    // Mode-switching and From-JSON DOM elements
+    const platformScrapeSection = document.getElementById('platformScrapeSection');
+    const fromJsonSection = document.getElementById('fromJsonSection');
+    const headfulOptionWrapper = document.getElementById('headfulOptionWrapper');
+    const btnStartText = document.getElementById('btnStartText');
+    const btnStartIcon = document.getElementById('btnStartIcon');
+    const jsonManifestPath = document.getElementById('jsonManifestPath');
+    const btnBrowseJson = document.getElementById('btnBrowseJson');
+    const jsonCourseBadge = document.getElementById('jsonCourseBadge');
+    const jsonCourseTitle = document.getElementById('jsonCourseTitle');
+    const jsonCourseLessons = document.getElementById('jsonCourseLessons');
+    const jsonAudioOnlyCheck = document.getElementById('jsonAudioOnlyCheck');
+
+    function handleModeChange() {
+      const mode = getSelectedMode();
+      localStorage.setItem('cp_archiveMode', mode);
+
+      if (mode === 'from-json') {
+        if (platformScrapeSection) platformScrapeSection.classList.add('hidden');
+        if (fromJsonSection) fromJsonSection.classList.remove('hidden');
+        if (headfulOptionWrapper) headfulOptionWrapper.classList.add('hidden');
+        if (btnStartText) btnStartText.textContent = 'Start Download';
+        if (btnStartIcon) btnStartIcon.setAttribute('data-lucide', 'download');
+      } else {
+        if (platformScrapeSection) platformScrapeSection.classList.remove('hidden');
+        if (fromJsonSection) fromJsonSection.classList.add('hidden');
+        if (headfulOptionWrapper) headfulOptionWrapper.classList.remove('hidden');
+        if (btnStartText) btnStartText.textContent = 'Start Backup';
+        if (btnStartIcon) btnStartIcon.setAttribute('data-lucide', 'play');
+      }
+      lucide.createIcons();
+      validateForm();
+    }
+
+    document.querySelectorAll('input[name="archiveMode"]').forEach(radio => {
+      radio.addEventListener('change', handleModeChange);
+    });
+
+    function handleJsonFileSelected(res) {
+      if (res && res.filePath) {
+        jsonManifestPath.value = res.filePath;
+        jsonCourseTitle.textContent = res.courseName || 'Course Manifest';
+        jsonCourseLessons.textContent = `${res.lessonCount || 0} lessons identified`;
+        jsonCourseBadge.classList.remove('hidden');
+        lucide.createIcons();
+        validateForm();
+      }
+    }
+
+    if (btnBrowseJson) {
+      btnBrowseJson.addEventListener('click', async () => {
+        const res = await window.api.selectCourseJson();
+        handleJsonFileSelected(res);
+      });
+    }
+
+    // Drag and drop support for course manifest JSON
+    const fromJsonSectionEl = document.getElementById('fromJsonSection');
+    if (fromJsonSectionEl) {
+      ['dragenter', 'dragover'].forEach(name => {
+        fromJsonSectionEl.addEventListener(name, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+      });
+      fromJsonSectionEl.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const file = e.dataTransfer?.files?.[0];
+        if (file && file.path && file.path.toLowerCase().endsWith('.json')) {
+          const res = await window.api.parseCourseJson(file.path);
+          handleJsonFileSelected(res);
+        }
+      });
+    }
+
+    function updateStatusUI(state, text = '') {
+      if (!statusIndicator || !statusLabel) return;
+      statusIndicator.className = 'w-2 h-2 rounded-full shrink-0';
+
+      switch (state) {
+        case 'ready':
+        case 'idle':
+          statusIndicator.classList.add('bg-emerald-500', 'animate-pulse');
+          statusLabel.textContent = 'Ready to Backup';
+          break;
+        case 'scraping':
+          statusIndicator.classList.add('bg-amber-500', 'animate-pulse');
+          statusLabel.textContent = 'Scraping Course...';
+          break;
+        case 'downloading':
+          statusIndicator.classList.add('bg-indigo-500', 'animate-pulse');
+          statusLabel.textContent = 'Downloading Videos...';
+          break;
+        case 'completed':
+          statusIndicator.classList.add('bg-emerald-500');
+          statusLabel.textContent = 'Done';
+          break;
+        case 'cancelled':
+          statusIndicator.classList.add('bg-slate-500');
+          statusLabel.textContent = 'Cancelled';
+          break;
+        case 'error':
+          statusIndicator.classList.add('bg-rose-500');
+          statusLabel.textContent = 'Error Occurred';
+          break;
+        default:
+          statusIndicator.classList.add('bg-slate-500');
+          statusLabel.textContent = 'Ready to Backup';
+      }
+    }
+
+    const btnClearConsole = document.getElementById('btnClearConsole');
+    const btnResetPath = document.getElementById('btnResetPath');
+    const promptModal = document.getElementById('promptModal');
+    const modalPromptQuestion = document.getElementById('modalPromptQuestion');
+    const modalPromptInput = document.getElementById('modalPromptInput');
+    const btnModalSubmit = document.getElementById('btnModalSubmit');
+    const btnModalCancel = document.getElementById('btnModalCancel');
+
+    // Helper functions to get/set selected radio mode
+    function getSelectedMode() {
+      const checkedRadio = document.querySelector('input[name="archiveMode"]:checked');
+      return checkedRadio ? checkedRadio.value : 'json';
+    }
+
+    function setSelectedMode(val) {
+      const radio = document.querySelector(`input[name="archiveMode"][value="${val}"]`);
+      if (radio) radio.checked = true;
+    }
+
+    let isRunning = false;
+
+    // Prompt submit helpers
+    function submitPromptInput() {
+      const val = modalPromptInput.value.trim();
+      if (val !== '') {
+        window.api.sendPromptInput(val);
+        promptModal.classList.add('hidden');
+        modalPromptInput.value = '';
+        updateStatusUI('scraping', 'Processing Selection...');
+        log(`Submitted input: ${val}`, 'info');
+      }
+    }
+
+    btnModalSubmit.addEventListener('click', submitPromptInput);
+    btnModalCancel.addEventListener('click', () => {
+      window.api.cancelArchive();
+      promptModal.classList.add('hidden');
+      modalPromptInput.value = '';
+      isRunning = false;
+      validateForm();
+      updateStatusUI('cancelled');
+      log('Backup process cancelled by user.', 'error');
+    });
+    modalPromptInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        submitPromptInput();
+      }
+    });
+
+    // Reset path helper
+    btnResetPath.addEventListener('click', (e) => {
+      e.preventDefault();
+      downloadPathInput.value = '';
+      localStorage.removeItem('cp_downloadPath');
+      btnResetPath.classList.add('hidden');
+      validateForm();
+    });
+
+    // Reset cookies helper
+    btnBrowseCookies.addEventListener('click', async () => {
+      const selectedPath = await window.api.selectCookiesFile();
+      if (selectedPath) {
+        cookiesPathInput.value = selectedPath;
+        localStorage.setItem('cp_cookiesPath', selectedPath);
+        btnResetCookies.classList.remove('hidden');
+        if (cookiesDetectedBadge) cookiesDetectedBadge.classList.add('hidden');
+        validateForm();
+      }
+    });
+
+    btnResetCookies.addEventListener('click', async (e) => {
+      e.preventDefault();
+      cookiesPathInput.value = '';
+      localStorage.removeItem('cp_cookiesPath');
+      btnResetCookies.classList.add('hidden');
+      await updateCookiesDetection();
+      validateForm();
+    });
+
+    if (btnOpenCookiesFolder) {
+      btnOpenCookiesFolder.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (window.api && window.api.openCookiesFolder) {
+          await window.api.openCookiesFolder();
+        }
+      });
+    }
+
+    // Platform matching helper & State
+    let supportedPlatforms = [];
+    let currentMatchedPlatform = null;
+    let autoDetectedCookiePath = null;
+
+    function setCredentialsDisabled(disabled, platform = null) {
+      if (disabled) {
+        usernameInput.disabled = true;
+        passwordInput.disabled = true;
+        usernameInput.classList.add('opacity-40', 'cursor-not-allowed', 'bg-slate-900/40');
+        passwordInput.classList.add('opacity-40', 'cursor-not-allowed', 'bg-slate-900/40');
+        usernameInput.placeholder = `Not required for ${platform ? platform.name : 'this platform'}`;
+        passwordInput.placeholder = 'Not required (Session Cookies used)';
+        if (cookiesOnlyNotice && cookiesOnlyNoticeText) {
+          cookiesOnlyNoticeText.textContent = `${platform ? platform.name : 'Platform'} uses Cloudflare protection. Credentials are disabled; session cookies are required.`;
+          cookiesOnlyNotice.classList.remove('hidden');
+        }
+        const credentialsWarning = document.getElementById('credentialsWarning');
+        if (credentialsWarning) credentialsWarning.classList.add('hidden');
+        usernameInput.classList.remove('border-amber-500/80');
+        passwordInput.classList.remove('border-amber-500/80');
+      } else {
+        usernameInput.disabled = false;
+        passwordInput.disabled = false;
+        usernameInput.classList.remove('opacity-40', 'cursor-not-allowed', 'bg-slate-900/40');
+        passwordInput.classList.remove('opacity-40', 'cursor-not-allowed', 'bg-slate-900/40');
+        usernameInput.placeholder = 'name@email.com';
+        passwordInput.placeholder = '••••••••';
+        if (cookiesOnlyNotice) cookiesOnlyNotice.classList.add('hidden');
+      }
+    }
+
+    async function updateCookiesDetection() {
+      const url = urlInput.value.trim();
+      if (!url.startsWith('http') || !window.api || !window.api.findCookiesFile) {
+        autoDetectedCookiePath = null;
+        if (cookiesDetectedBadge) cookiesDetectedBadge.classList.add('hidden');
+        return;
+      }
+
+      // If user has manually chosen a cookies file, don't override with auto-detected badge
+      if (cookiesPathInput.value && cookiesPathInput.value.trim() !== '') {
+        if (cookiesDetectedBadge) cookiesDetectedBadge.classList.add('hidden');
+        return;
+      }
+
+      try {
+        const detected = await window.api.findCookiesFile({
+          url,
+          platformId: currentMatchedPlatform ? currentMatchedPlatform.id : ''
+        });
+
+        if (detected) {
+          autoDetectedCookiePath = detected;
+          const fileName = detected.split(/[\\/]/).pop();
+          const inCookiesFolder = detected.includes('cookies');
+          const displayLabel = inCookiesFolder ? `cookies/${fileName}` : fileName;
+
+          if (cookiesDetectedBadge && cookiesDetectedText) {
+            cookiesDetectedText.textContent = `Auto-detected: ${displayLabel}`;
+            cookiesDetectedBadge.className = 'text-[11px] text-emerald-400 flex items-center gap-1.5 font-medium mt-1';
+            cookiesDetectedBadge.classList.remove('hidden');
+          }
+        } else {
+          autoDetectedCookiePath = null;
+          const isCookiesOnly = currentMatchedPlatform && (
+            (currentMatchedPlatform.authMethods && currentMatchedPlatform.authMethods.length === 1 && currentMatchedPlatform.authMethods[0] === 'cookies') ||
+            currentMatchedPlatform.id === 'skool'
+          );
+
+          if (isCookiesOnly && (!cookiesPathInput.value || cookiesPathInput.value.trim() === '')) {
+            if (cookiesDetectedBadge && cookiesDetectedText) {
+              const rootDomain = url.replace(/^https?:\/\//i, '').split('/')[0].replace(/^www\./i, '');
+              cookiesDetectedText.textContent = `Missing cookies in cookies/ folder (e.g. *${rootDomain}*.json)`;
+              cookiesDetectedBadge.className = 'text-[11px] text-amber-400 flex items-center gap-1.5 font-medium mt-1';
+              cookiesDetectedBadge.classList.remove('hidden');
+            }
+          } else {
+            if (cookiesDetectedBadge) cookiesDetectedBadge.classList.add('hidden');
+          }
+        }
+      } catch (err) {
+        console.warn('Cookie detection failed:', err);
+      }
+    }
+
+    async function checkUrlPlatform() {
+      const url = urlInput.value.trim().toLowerCase();
+      if (!url.startsWith('http')) {
+        platformBadge.classList.add('hidden');
+        currentMatchedPlatform = null;
+        setCredentialsDisabled(false);
+        await updateCookiesDetection();
+        validateForm();
+        return;
+      }
+
+      const matched = supportedPlatforms.find(p => {
+        return p.domains && p.domains.some(d => url.includes(d.toLowerCase()));
+      });
+
+      currentMatchedPlatform = matched || null;
+
+      if (matched) {
+        platformName.textContent = `Identified: ${matched.name} (${matched.id})`;
+        platformBadge.className = 'text-[11px] flex items-center gap-1.5 mt-0.5 font-medium text-emerald-400';
+        platformBadge.classList.remove('hidden');
+      } else {
+        platformName.textContent = `Custom Domain / Auto-Detection Active`;
+        platformBadge.className = 'text-[11px] flex items-center gap-1.5 mt-0.5 font-medium text-indigo-400';
+        platformBadge.classList.remove('hidden');
+      }
+
+      const isCookiesOnly = matched && (
+        (matched.authMethods && matched.authMethods.length === 1 && matched.authMethods[0] === 'cookies') ||
+        matched.id === 'skool'
+      );
+
+      setCredentialsDisabled(isCookiesOnly, matched);
+      await updateCookiesDetection();
+      validateForm();
+    }
+
+    // Fetch and pre-fill saved inputs on load
+    async function initForm() {
+      urlInput.value = localStorage.getItem('cp_url') || urlInput.value || '';
+      usernameInput.value = localStorage.getItem('cp_username') || usernameInput.value || '';
+      setSelectedMode(localStorage.getItem('cp_archiveMode') || 'json');
+      handleModeChange();
+      const savedPath = localStorage.getItem('cp_downloadPath');
+      if (savedPath) {
+        downloadPathInput.value = savedPath;
+        btnResetPath.classList.remove('hidden');
+      }
+      const savedCookies = localStorage.getItem('cp_cookiesPath');
+      if (savedCookies) {
+        cookiesPathInput.value = savedCookies;
+        btnResetCookies.classList.remove('hidden');
+      }
+
+      try {
+        if (window.api && window.api.getPlatforms) {
+          supportedPlatforms = await window.api.getPlatforms();
+        }
+      } catch (err) {
+        console.warn('Could not load platforms:', err);
+      }
+
+      await checkUrlPlatform();
+      validateForm();
+    }
+
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', initForm);
+    } else {
+      initForm();
+    }
+
+    // Enable/Disable Start button based on validation
+    function validateForm() {
+      const mode = getSelectedMode();
+      const isEulaOk = eulaCheck.checked;
+
+      if (mode === 'from-json') {
+        const hasJson = jsonManifestPath && jsonManifestPath.value && jsonManifestPath.value.trim() !== '';
+        btnStart.disabled = !hasJson || isEulaOk === false || isRunning;
+        return;
+      }
+
+      const isUrlOk = urlInput.value.trim().startsWith('http');
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value.trim();
+
+      const credentialsWarning = document.getElementById('credentialsWarning');
+      const credentialsWarningText = document.getElementById('credentialsWarningText');
+
+      const isCookiesOnly = currentMatchedPlatform && (
+        (currentMatchedPlatform.authMethods && currentMatchedPlatform.authMethods.length === 1 && currentMatchedPlatform.authMethods[0] === 'cookies') ||
+        currentMatchedPlatform.id === 'skool'
+      );
+
+      let isCredentialsOk = true;
+
+      if (isCookiesOnly) {
+        // For cookies-only platforms, credentials are not required.
+        // Instead, verify that a cookie file is either browsed or auto-detected.
+        const hasCookies = (cookiesPathInput.value && cookiesPathInput.value.trim() !== '') || !!autoDetectedCookiePath;
+        if (!hasCookies) {
+          isCredentialsOk = false;
+        }
+        if (credentialsWarning) credentialsWarning.classList.add('hidden');
+      } else {
+        if (username !== '' && password === '') {
+          isCredentialsOk = false;
+          if (credentialsWarning && credentialsWarningText) {
+            credentialsWarningText.textContent = 'Password is required when username/email is entered.';
+            credentialsWarning.classList.remove('hidden');
+          }
+          passwordInput.classList.add('border-amber-500/80');
+          usernameInput.classList.remove('border-amber-500/80');
+        } else if (password !== '' && username === '') {
+          isCredentialsOk = false;
+          if (credentialsWarning && credentialsWarningText) {
+            credentialsWarningText.textContent = 'Username / email is required when password is entered.';
+            credentialsWarning.classList.remove('hidden');
+          }
+          usernameInput.classList.add('border-amber-500/80');
+          passwordInput.classList.remove('border-amber-500/80');
+        } else {
+          if (credentialsWarning) credentialsWarning.classList.add('hidden');
+          passwordInput.classList.remove('border-amber-500/80');
+          usernameInput.classList.remove('border-amber-500/80');
+        }
+      }
+
+      btnStart.disabled = !isUrlOk || isEulaOk === false || !isCredentialsOk || isRunning;
+    }
+
+    // Parse composite credentials pasted as URL:LOGIN:PASSWORD
+    function parseCompositeCredentials(raw) {
+      if (!raw || typeof raw !== 'string') return null;
+      const str = raw.trim().replace(/^["']|["']$/g, '');
+
+      // 1. Full URL with protocol (http:// or https://)
+      // Supports optional port (:1234), deep path (/folder/slug), queries, and fragments
+      const httpRegex = /^(https?:\/\/[^\s:]+(?::\d+)?(?:\/[^\s:]*)?):([^\s:]+):([\s\S]+)$/i;
+      let match = str.match(httpRegex);
+      if (match) {
+        return { url: match[1], username: match[2], password: match[3] };
+      }
+
+      // 2. Domain + path without protocol (e.g. skool.com/mechanizmpro-6628:user:pass)
+      const domainRegex = /^([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?::\d+)?(?:\/[^\s:]*)?):([^\s:]+):([\s\S]+)$/i;
+      match = str.match(domainRegex);
+      if (match) {
+        return { url: 'https://' + match[1], username: match[2], password: match[3] };
+      }
+
+      return null;
+    }
+
+    function handleCompositeUrlInput(text) {
+      const parsed = parseCompositeCredentials(text);
+      if (parsed) {
+        urlInput.value = parsed.url;
+        usernameInput.value = parsed.username;
+        passwordInput.value = parsed.password;
+        try {
+          localStorage.setItem('cp_url', parsed.url);
+          localStorage.setItem('cp_username', parsed.username);
+        } catch (_) { }
+
+        // Subtle green border flash to confirm auto-population
+        [urlInput, usernameInput, passwordInput].forEach(el => {
+          el.classList.add('border-emerald-500/80');
+          setTimeout(() => el.classList.remove('border-emerald-500/80'), 1500);
+        });
+
+        log('Auto-filled URL, username, and password from credentials string.', 'info');
+        checkUrlPlatform();
+        validateForm();
+        return true;
+      }
+      return false;
+    }
+
+    // Handle paste event directly on urlInput to prevent exposing password in URL field
+    urlInput.addEventListener('paste', (e) => {
+      const pasteData = (e.clipboardData || window.clipboardData)?.getData('text');
+      if (pasteData && handleCompositeUrlInput(pasteData)) {
+        e.preventDefault();
+        if (!isRunning) updateStatusUI('ready');
+      }
+    });
+
+    // Attach listeners across all inputs & form elements
+    ['input', 'change', 'keyup', 'paste', 'blur'].forEach(evt => {
+      urlInput.addEventListener(evt, () => {
+        if (urlInput.value && urlInput.value.includes(':')) {
+          handleCompositeUrlInput(urlInput.value);
+        }
+        checkUrlPlatform();
+        validateForm();
+        if (!isRunning) updateStatusUI('ready');
+      });
+      usernameInput.addEventListener(evt, validateForm);
+      passwordInput.addEventListener(evt, validateForm);
+    });
+
+    ['change', 'click', 'input'].forEach(evt => {
+      eulaCheck.addEventListener(evt, () => {
+        validateForm();
+        if (!isRunning) updateStatusUI('ready');
+      });
+    });
+
+    // Run lightweight periodic check so autofill or state changes immediately activate button
+    setInterval(validateForm, 300);
+
+    // Folder selection
+    btnBrowse.addEventListener('click', async () => {
+      const selectedPath = await window.api.selectDirectory();
+      if (selectedPath) {
+        downloadPathInput.value = selectedPath;
+        localStorage.setItem('cp_downloadPath', selectedPath);
+        btnResetPath.classList.remove('hidden');
+        validateForm();
+      }
+    });
+
+    // Logging function
+    function log(message, type = 'info') {
+      const logLine = document.createElement('div');
+      logLine.className = 'py-0.5 leading-relaxed';
+
+      const time = new Date().toLocaleTimeString();
+      const timeSpan = `<span class="text-slate-600 mr-2">[${time}]</span>`;
+
+      // Convert URLs in plain text to clickable links
+      let formattedMessage = message;
+      if (typeof formattedMessage === 'string' && !formattedMessage.includes('<a ')) {
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        formattedMessage = formattedMessage.replace(urlRegex, (url) => {
+          return `<a href="${url}" target="_blank" class="underline text-indigo-400 hover:text-indigo-300 transition-colors">${url}</a>`;
+        });
+      }
+
+      if (type === 'success') {
+        logLine.innerHTML = `${timeSpan}<span class="text-emerald-400 font-medium">&#10004; ${formattedMessage}</span>`;
+      } else if (type === 'error') {
+        logLine.innerHTML = `${timeSpan}<span class="text-rose-400 font-medium">&#10006; ${formattedMessage}</span>`;
+      } else if (type === 'warning') {
+        logLine.innerHTML = `${timeSpan}<span class="text-amber-400 font-medium">&#9888; ${formattedMessage}</span>`;
+      } else {
+        logLine.innerHTML = `${timeSpan}<span class="text-slate-300">${formattedMessage}</span>`;
+      }
+
+      consoleLog.appendChild(logLine);
+      consoleLog.scrollTop = consoleLog.scrollHeight;
+    }
+
+    // Clear logs
+    btnClearConsole.addEventListener('click', () => {
+      consoleLog.innerHTML = '<div class="text-slate-500">// Console logs cleared.</div>';
+    });
+
+    // Start process
+    btnStart.addEventListener('click', async () => {
+      if (isRunning) return;
+
+      const mode = getSelectedMode();
+
+      // Check media dependencies (yt-dlp and ffmpeg) only when downloading media
+      if (mode === 'all' || mode === 'from-json') {
+        try {
+          const deps = await window.api.checkDependencies();
+          if (!deps.allOk) {
+            updateStatusUI('error', 'Missing dependencies');
+            if (!deps.ytdlp.found && !deps.ffmpeg.found) {
+              log('Missing dependencies: "yt-dlp" and "ffmpeg" are required to download course videos and audio.', 'error');
+              log('Install: Run "winget install yt-dlp Gyan.FFmpeg" (restart app after), or place yt-dlp.exe and ffmpeg.exe into bin/ folder.', 'warning');
+            } else if (!deps.ytdlp.found) {
+              log('Missing dependency: "yt-dlp" is required to download video/audio streams.', 'error');
+              log('Install: Run "winget install yt-dlp" (restart app after), or place yt-dlp.exe into bin/ folder.', 'warning');
+            } else if (!deps.ffmpeg.found) {
+              log('Missing dependency: "ffmpeg" is required for stream muxing (e.g. Vimeo/HLS) and audio extraction.', 'error');
+              log('Install: Run "winget install Gyan.FFmpeg" (restart app after), or place ffmpeg.exe into bin/ folder.', 'warning');
+            }
+            return;
+          }
+        } catch (e) {
+          console.warn('Dependency check skipped due to error:', e);
+        }
+      }
+
+      // Clear previous console logs and reset progress
+      consoleLog.innerHTML = '';
+      progressBar.style.width = '0%';
+      progressPercent.textContent = '0%';
+
+      isRunning = true;
+      btnStart.disabled = true;
+
+      if (mode === 'from-json') {
+        updateStatusUI('downloading', 'Initializing download...');
+        window.api.startFromJson({
+          jsonPath: jsonManifestPath.value.trim(),
+          downloadPath: downloadPathInput.value,
+          audioOnly: jsonAudioOnlyCheck ? jsonAudioOnlyCheck.checked : false
+        });
+        return;
+      }
+
+      updateStatusUI('scraping', 'Initializing...');
+
+      // Save inputs to localStorage
+      localStorage.setItem('cp_url', urlInput.value.trim());
+      localStorage.setItem('cp_username', usernameInput.value.trim());
+      localStorage.setItem('cp_archiveMode', mode);
+      if (cookiesPathInput.value.trim()) {
+        localStorage.setItem('cp_cookiesPath', cookiesPathInput.value.trim());
+      }
+
+      const headfulCheck = document.getElementById('headfulCheck');
+      const effectiveCookies = cookiesPathInput.value.trim() || autoDetectedCookiePath || '';
+      const config = {
+        url: urlInput.value.trim(),
+        username: usernameInput.disabled ? '' : usernameInput.value.trim(),
+        password: passwordInput.disabled ? '' : passwordInput.value.trim(),
+        downloadPath: downloadPathInput.value,
+        cookiesPath: effectiveCookies,
+        mode: mode,
+        headless: headfulCheck ? !headfulCheck.checked : true
+      };
+
+      // Call desktop-main process via context bridge
+      window.api.startArchive(config);
+    });
+
+    // Listen to IPC events from main process
+    window.api.onLog((data) => {
+      log(data.message, data.type);
+    });
+
+    window.api.onProgress((percent) => {
+      progressBar.style.width = `${percent}%`;
+      progressPercent.textContent = `${percent}%`;
+    });
+
+    window.api.onStatus((data) => {
+      updateStatusUI(data.state, data.text);
+    });
+
+    window.api.onComplete((status) => {
+      isRunning = false;
+      validateForm();
+      promptModal.classList.add('hidden');
+      updateStatusUI(status.success ? 'completed' : 'error');
+      if (status.success) {
+        if (status.isFromJson) {
+          return;
+        }
+
+        const batPaths = status.batPaths || (status.batPath ? [status.batPath] : []);
+        const courses = Array.isArray(status.courses) ? status.courses : [];
+
+        // Show download modal if there are actually video batch files to download
+        if (status.hasBatch && batPaths.length > 0) {
+          const completeModal = document.getElementById('completeModal');
+          const completeOutputDir = document.getElementById('completeOutputDir');
+          const completeCoursesList = document.getElementById('completeCoursesList');
+          const completeBatchText = document.getElementById('completeBatchText');
+          const completeBatchInfo = document.getElementById('completeBatchInfo');
+          const btnCompleteRunDownload = document.getElementById('btnCompleteRunDownload');
+
+          if (completeModal) {
+            if (completeOutputDir) {
+              completeOutputDir.textContent = status.outputDir || 'output/';
+              completeOutputDir.title = status.outputDir || '';
+            }
+
+            if (completeCoursesList) {
+              if (courses.length > 0) {
+                completeCoursesList.textContent = `${courses.length} course(s): ${courses.map(c => c.name).join(', ')}`;
+                completeCoursesList.title = courses.map(c => c.name).join(', ');
+              } else {
+                completeCoursesList.textContent = 'Completed';
+              }
+            }
+
+            if (completeBatchInfo) completeBatchInfo.classList.remove('hidden');
+            if (completeBatchText) {
+              if (batPaths.length === 1) {
+                completeBatchText.textContent = batPaths[0].split(/[\\/]/).pop();
+              } else {
+                completeBatchText.textContent = `${batPaths.length} scripts (${batPaths.map(b => b.split(/[\\/]/).pop()).join(', ')})`;
+              }
+            }
+            if (btnCompleteRunDownload) {
+              btnCompleteRunDownload.classList.remove('hidden');
+              btnCompleteRunDownload.onclick = async () => {
+                try {
+                  const deps = await window.api.checkDependencies();
+                  if (!deps.allOk) {
+                    completeModal.classList.add('hidden');
+                    updateStatusUI('error', 'Missing dependencies');
+                    if (!deps.ytdlp.found && !deps.ffmpeg.found) {
+                      log('Missing dependencies: "yt-dlp" and "ffmpeg" are required to download course videos and audio.', 'error');
+                      log('Install: Run "winget install yt-dlp Gyan.FFmpeg" (restart app after), or place yt-dlp.exe and ffmpeg.exe into bin/ folder.', 'warning');
+                    } else if (!deps.ytdlp.found) {
+                      log('Missing dependency: "yt-dlp" is required to download video/audio streams.', 'error');
+                      log('Install: Run "winget install yt-dlp" (restart app after), or place yt-dlp.exe into bin/ folder.', 'warning');
+                    } else if (!deps.ffmpeg.found) {
+                      log('Missing dependency: "ffmpeg" is required for stream muxing (e.g. Vimeo/HLS) and audio extraction.', 'error');
+                      log('Install: Run "winget install Gyan.FFmpeg" (restart app after), or place ffmpeg.exe into bin/ folder.', 'warning');
+                    }
+                    return;
+                  }
+                } catch (e) { }
+
+                completeModal.classList.add('hidden');
+                for (let i = 0; i < batPaths.length; i++) {
+                  const currentBat = batPaths[i];
+                  const batName = currentBat.split(/[\\/]/).pop();
+                  log(`Starting in-app video download [${i + 1}/${batPaths.length}]: ${batName}`, 'info');
+                  updateStatusUI('downloading', `Downloading Videos [${i + 1}/${batPaths.length}]...`);
+                  progressBar.style.width = '0%';
+                  progressPercent.textContent = '0%';
+                  try {
+                    await window.api.runBatchDownload(currentBat);
+                  } catch (e) {
+                    log(`Batch download notice for ${batName}: ${e.message}`, 'error');
+                  }
+                }
+                if (batPaths.length > 1) {
+                  log(`All ${batPaths.length} download scripts completed!`, 'success');
+                }
+                updateStatusUI('completed', 'Done');
+                progressBar.style.width = '100%';
+                progressPercent.textContent = '100%';
+              };
+            }
+
+            completeModal.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+          }
+        } else {
+          log('All structure, lesson HTML, and materials saved. No videos to download for selected course(s).', 'info');
+        }
+      } else {
+        if (!status || !status.isUnknownPlatform) {
+          log('Backup flow interrupted due to error.', 'error');
+        }
+      }
+    });
+
+    // Complete modal event listeners
+    const btnCompleteClose = document.getElementById('btnCompleteClose');
+    const btnCompleteOpenFolder = document.getElementById('btnCompleteOpenFolder');
+    if (btnCompleteClose) {
+      btnCompleteClose.addEventListener('click', () => {
+        const completeModal = document.getElementById('completeModal');
+        if (completeModal) completeModal.classList.add('hidden');
+      });
+    }
+    if (btnCompleteOpenFolder) {
+      btnCompleteOpenFolder.addEventListener('click', () => {
+        const outDir = document.getElementById('completeOutputDir')?.title || '';
+        window.api.openPath(outDir);
+      });
+    }
+
+    // Ensure all background processes are killed if window unloads
+    window.addEventListener('beforeunload', () => {
+      try {
+        window.api.cancelArchive();
+      } catch (e) { }
+    });
+
+    // Handle interactive prompts from engine
+    window.api.onPrompt((data) => {
+      const question = typeof data === 'object' && data.promptText ? data.promptText : (typeof data === 'string' ? data : '');
+      const modalTitle = document.getElementById('modalTitle');
+      const modalSubtitle = document.getElementById('modalSubtitle');
+      const courseArea = document.getElementById('modalCourseArea');
+      courseArea.innerHTML = ''; // Clear previous contents
+
+      const courseListings = [];
+
+      if (typeof data === 'object' && Array.isArray(data.courses) && data.courses.length > 0) {
+        data.courses.forEach(c => {
+          courseListings.push({
+            number: String(c.id),
+            label: `${c.id} - ${c.name}${c.url ? ` (${c.url})` : ''}`
+          });
+        });
+      } else {
+        // Fallback: parse lines from question or consoleLog
+        const lines = question.split('\n');
+        lines.forEach(line => {
+          const match = line.trim().match(/^(\d+)\s*-\s*(.+)$/);
+          if (match && match[1] !== '0') {
+            courseListings.push({
+              number: match[1],
+              label: `${match[1]} - ${match[2]}`
+            });
+          }
+        });
+
+        if (courseListings.length === 0) {
+          const logs = Array.from(consoleLog.querySelectorAll('div'));
+          logs.forEach(el => {
+            const text = el.textContent.trim();
+            const optionMatch = text.match(/^(?:\[\d{2}:\d{2}:\d{2}\])?\s*(\d+)\s*-\s*(.*)$/);
+            if (optionMatch && optionMatch[1] !== '0') {
+              courseListings.push({
+                number: optionMatch[1],
+                label: `${optionMatch[1]} - ${optionMatch[2]}`
+              });
+            }
+          });
+        }
+      }
+
+      if (courseListings.length > 0) {
+        // Add "0 - All Courses" if more than 1 course available
+        if (courseListings.length > 1 && !courseListings.some(c => c.number === '0')) {
+          courseListings.unshift({
+            number: '0',
+            label: '0 - All Courses'
+          });
+        }
+
+        courseArea.classList.remove('hidden');
+        modalPromptQuestion.classList.add('hidden');
+        modalPromptQuestion.textContent = '';
+        if (modalTitle) modalTitle.textContent = 'Select Courses to Backup';
+        if (modalSubtitle) modalSubtitle.textContent = 'Click on courses to select, or choose 0 for all.';
+        btnModalSubmit.textContent = 'Confirm Selection';
+
+        // 1. Add Search input if more than 5 courses
+        let searchInput = null;
+        if (courseListings.length > 5) {
+          const searchWrapper = document.createElement('div');
+          searchWrapper.className = 'relative mb-2 shrink-0';
+          searchWrapper.innerHTML = `
+            <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-500">
+              <i data-lucide="search" class="w-3.5 h-3.5"></i>
+            </span>
+            <input type="text" id="courseSearch" placeholder="Filter courses by name..." class="w-full bg-[#080c14] border border-slate-800 rounded-md py-1.5 pl-8 pr-3 text-xs focus:outline-none focus:border-indigo-500 text-slate-200 select-text">
+          `;
+          courseArea.appendChild(searchWrapper);
+          searchInput = searchWrapper.querySelector('input');
+        }
+
+        // 2. Add Scrollable List container
+        const listContainer = document.createElement('div');
+        listContainer.className = 'flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-1.5 max-h-[280px] pr-1';
+        courseArea.appendChild(listContainer);
+
+        // Track selected indices
+        let selectedIds = [];
+
+        // Helper to update card styling and input field
+        const updateSelection = () => {
+          const cards = listContainer.querySelectorAll('.course-card');
+          cards.forEach(card => {
+            const num = card.dataset.number;
+            const checkIcon = card.querySelector('.check-icon');
+            const circleNum = card.querySelector('.circle-number');
+
+            if (selectedIds.includes(num)) {
+              card.classList.add('border-indigo-500/60', 'bg-indigo-500/10');
+              checkIcon.classList.remove('hidden');
+              if (circleNum) {
+                circleNum.classList.add('bg-indigo-500/20', 'text-indigo-300', 'border-indigo-500/40');
+                circleNum.classList.remove('bg-[#080c14]', 'text-slate-400', 'border-slate-800');
+              }
+            } else {
+              card.classList.remove('border-indigo-500/60', 'bg-indigo-500/10');
+              checkIcon.classList.add('hidden');
+              if (circleNum) {
+                circleNum.classList.remove('bg-indigo-500/20', 'text-indigo-300', 'border-indigo-500/40');
+                circleNum.classList.add('bg-[#080c14]', 'text-slate-400', 'border-slate-800');
+              }
+            }
+          });
+
+          modalPromptInput.value = selectedIds.join(',');
+        };
+
+        // Render each course item
+        courseListings.forEach(item => {
+          const card = document.createElement('div');
+          card.className = 'course-card w-full flex items-center justify-between p-2.5 rounded-md border border-slate-800 bg-[#080c14] hover:bg-slate-900/40 hover:border-slate-700 transition-colors text-left cursor-pointer group';
+          card.dataset.number = item.number;
+
+          // Parse name and URL if present
+          const urlRegex = /\((https?:\/\/[^\s)]+)\)/;
+          let cleanTitle = item.label;
+          let courseUrl = '';
+          const urlMatch = cleanTitle.match(urlRegex);
+          if (urlMatch) {
+            courseUrl = urlMatch[1];
+            cleanTitle = cleanTitle.replace(urlRegex, '').trim();
+          }
+          // Remove number prefix if present
+          cleanTitle = cleanTitle.replace(/^\d+\s*-\s*/, '').trim();
+          // Strip quotes
+          cleanTitle = cleanTitle.replace(/^["'\s]+|["'\s]+$/g, '').trim();
+
+          card.innerHTML = `
+            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+              <span class="circle-number w-5 h-5 rounded border border-slate-800 bg-[#080c14] text-[10px] font-mono flex items-center justify-center text-slate-400 shrink-0 transition-colors">
+                ${item.number}
+              </span>
+              <div class="flex flex-col min-w-0 flex-1">
+                <span class="text-xs font-medium text-slate-200 group-hover:text-white transition-colors truncate">${cleanTitle}</span>
+                ${courseUrl ? `<span class="text-[9px] text-slate-500 group-hover:text-slate-400 transition-colors truncate font-mono mt-0.5">${courseUrl}</span>` : ''}
+              </div>
+            </div>
+            <span class="check-icon hidden text-indigo-400 shrink-0 ml-2">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
+            </span>
+          `;
+
+          // Handle click selection
+          card.addEventListener('click', () => {
+            const num = item.number;
+            if (num === '0') {
+              // Option 0 - "All" selected: clear others and set to 0
+              selectedIds = ['0'];
+            } else {
+              // If other option is clicked, remove '0' if present
+              selectedIds = selectedIds.filter(id => id !== '0');
+              if (selectedIds.includes(num)) {
+                selectedIds = selectedIds.filter(id => id !== num);
+              } else {
+                selectedIds.push(num);
+              }
+            }
+            updateSelection();
+          });
+
+          listContainer.appendChild(card);
+        });
+
+        // Search filtering logic
+        if (searchInput) {
+          searchInput.addEventListener('input', () => {
+            const query = searchInput.value.toLowerCase().trim();
+            const cards = listContainer.querySelectorAll('.course-card');
+            cards.forEach(card => {
+              const text = card.textContent.toLowerCase();
+              if (text.includes(query)) {
+                card.classList.remove('hidden');
+              } else {
+                card.classList.add('hidden');
+              }
+            });
+          });
+        }
+
+        // Initialize Lucide icons on newly created elements
+        lucide.createIcons();
+
+        // Initialize state
+        selectedIds = modalPromptInput.value.split(',').filter(x => x.trim() !== '');
+        if (selectedIds.length === 0) {
+          // Default to first item if empty
+          selectedIds = [];
+        }
+        updateSelection();
+
+      } else {
+        courseArea.classList.add('hidden');
+        modalPromptQuestion.classList.remove('hidden');
+        modalPromptQuestion.textContent = question.trim();
+        if (modalTitle) modalTitle.textContent = 'Input Required';
+        if (modalSubtitle) modalSubtitle.textContent = 'The engine requires input to proceed.';
+        btnModalSubmit.textContent = 'Submit';
+      }
+
+      promptModal.classList.remove('hidden');
+      setTimeout(() => modalPromptInput.focus(), 50);
+    });
+  </script>
+</body>
+
+</html>

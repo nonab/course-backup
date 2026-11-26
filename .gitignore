@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+
+# Exported courses & media downloads
+output/
+downloads/
+
+# Session & Authentication secrets
+cookies/*
+!cookies/.gitkeep
+!cookies/README.md
+cookies.json
+*_cookies.json
+*cookies*.json
+.env
+
+# Download fragments & batch files
+*.bat
+*.part
+*.ytdl
+*.zip
+*debug*.json
+
+# Operating System artifacts
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# AI Agent Skills & Configuration
+.agents/
