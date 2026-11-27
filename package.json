@@ -1,6 +1,6 @@
 {
   "name": "course-backup",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Content Portability & Course Migration Tool for Creators & Educators",
   "main": "src/desktop/main.js",
   "bin": {
