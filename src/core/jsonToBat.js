@@ -361,7 +361,7 @@ const processJsonFile = async (inputFileName, displayName = null, options = {}) 
                         if (isAudioUrl) {
                             fileExt = videoUrl.match(/\.(mp3|m4a|wav|aac|ogg)/i)?.[1]?.toLowerCase() || 'mp3';
                         }
-                        command = `curl -f "${batchUrl}" -o "${fileTitle}.${fileExt}"`;
+                        command = `curl -f -L "${batchUrl}" -o "${fileTitle}.${fileExt}"`;
                         if (batchReferer.length) {
                             command += ' --referer ' + batchReferer;
                         }

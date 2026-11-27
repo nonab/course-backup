@@ -162,8 +162,8 @@ async function checkTool(name) {
 
     // 2. Check system PATH via where.exe (Windows) or which (Unix)
     return new Promise((resolve) => {
-        const checkCmd = isWin 
-            ? (process.env.SystemRoot ? path.join(process.env.SystemRoot, 'System32', 'where.exe') : 'where.exe') 
+        const checkCmd = isWin
+            ? (process.env.SystemRoot ? path.join(process.env.SystemRoot, 'System32', 'where.exe') : 'where.exe')
             : 'which';
         const proc = spawn(checkCmd, [name], { shell: false });
         let stdout = '';
@@ -540,10 +540,12 @@ async function downloadVideoInline(videoUrl, title, courseDir, options = {}) {
     }
 
     const safeTitle = cleanFileName(title);
-    const targetFile = path.join(courseDir, `${safeTitle}.mp4`);
+    const isAudio = /\.(mp3|m4a|wav)(?:[?#]|$)/i.test(videoUrl);
+    const mediaExt = isAudio ? (videoUrl.match(/\.(mp3|m4a|wav)/i)?.[1]?.toLowerCase() || 'mp3') : 'mp4';
+    const targetFile = path.join(courseDir, `${safeTitle}.${mediaExt}`);
 
     // Migrate/clean up legacy videos subfolder if present
-    const legacyFile = path.join(courseDir, 'videos', `${safeTitle}.mp4`);
+    const legacyFile = path.join(courseDir, 'videos', `${safeTitle}.${mediaExt}`);
     if (fs.existsSync(legacyFile) && !fs.existsSync(targetFile)) {
         try {
             fs.renameSync(legacyFile, targetFile);
@@ -558,16 +560,17 @@ async function downloadVideoInline(videoUrl, title, courseDir, options = {}) {
     }
 
     if (fs.existsSync(targetFile) && fs.statSync(targetFile).size > 1024) {
-        if (options.onLog) options.onLog(`[Video Cached] ${safeTitle}.mp4 already exists. Skipping.`);
+        if (options.onLog) options.onLog(`[Media Cached] ${safeTitle}.${mediaExt} already exists. Skipping.`);
         return targetFile;
     }
 
-    // Direct MP4 download without yt-dlp if it's a direct file URL
-    const isDirectMp4 = /\.mp4(\?|$)/i.test(videoUrl) && !videoUrl.includes('m3u8') && !videoUrl.includes('vimeo') && !videoUrl.includes('hotmart');
+    // Direct MP4 / Audio download without yt-dlp if it's a direct file URL
+    const isDirectMedia = /\.(mp4|mp3|m4a|wav)(\?|$)/i.test(videoUrl) && !videoUrl.includes('m3u8') && !videoUrl.includes('vimeo') && !videoUrl.includes('hotmart');
 
-    if (isDirectMp4) {
-        if (options.onLog) options.onLog(`[Direct Stream] Downloading MP4 directly: ${safeTitle}...`);
-        return await downloadMaterial(videoUrl, `${safeTitle}.mp4`, courseDir, {
+    if (isDirectMedia) {
+        const typeLabel = isAudio ? 'audio' : 'MP4';
+        if (options.onLog) options.onLog(`[Direct Stream] Downloading ${typeLabel} directly: ${safeTitle}.${mediaExt}...`);
+        return await downloadMaterial(videoUrl, `${safeTitle}.${mediaExt}`, courseDir, {
             destinationDir: courseDir,
             headers: options.referer ? { Referer: options.referer } : undefined
         });
@@ -677,8 +680,8 @@ function runBatchDownload(scriptPath, options = {}) {
         } catch (e) { }
 
         const isWin = process.platform === 'win32';
-        const cmd = isWin 
-            ? (process.env.ComSpec || process.env.COMSPEC || 'C:\\Windows\\System32\\cmd.exe') 
+        const cmd = isWin
+            ? (process.env.ComSpec || process.env.COMSPEC || 'C:\\Windows\\System32\\cmd.exe')
             : (process.env.SHELL || '/bin/bash');
         const args = isWin ? ['/d', '/c', scriptPath] : [scriptPath];
 

@@ -340,9 +340,6 @@ ipcMain.on('start-archive', async (event, data) => {
 
     currentEngine.on('error', (err) => {
       const isUnknownPlatform = !!err.isUnknownPlatform || (err.message && err.message.includes('No matching platform adapter'));
-      if (!isUnknownPlatform) {
-        sendLog(`Engine error: ${err.message}`, 'error');
-      }
       updateStatus('error', isUnknownPlatform ? 'Platform not supported' : 'Error occurred');
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('archive-complete', { success: false, isUnknownPlatform });

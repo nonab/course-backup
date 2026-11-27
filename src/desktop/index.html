@@ -1034,6 +1034,28 @@
       }
     });
 
+    // Handle paste event on usernameInput (splits user:pass if pasted)
+    usernameInput.addEventListener('paste', (e) => {
+      const pasteData = (e.clipboardData || window.clipboardData)?.getData('text');
+      if (pasteData && handleCompositeUrlInput(pasteData)) {
+        e.preventDefault();
+        if (!isRunning) updateStatusUI('ready');
+        return;
+      }
+      if (pasteData && pasteData.includes(':') && !pasteData.includes('://')) {
+        const splitIdx = pasteData.indexOf(':');
+        const user = pasteData.slice(0, splitIdx).trim();
+        const pass = pasteData.slice(splitIdx + 1).trim();
+        if (user && pass) {
+          e.preventDefault();
+          usernameInput.value = user;
+          passwordInput.value = pass;
+          validateForm();
+          if (!isRunning) updateStatusUI('ready');
+        }
+      }
+    });
+
     // Attach listeners across all inputs & form elements
     ['input', 'change', 'keyup', 'paste', 'blur'].forEach(evt => {
       urlInput.addEventListener(evt, () => {

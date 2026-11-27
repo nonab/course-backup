@@ -20,7 +20,17 @@
  * @returns {Promise<boolean>}
  */
 async function loginWordPress(page, { username, password, url, baseUrl }, options = {}) {
-    if (!username || !password) {
+    let cleanUsername = String(username || '').trim();
+    let cleanPassword = String(password || '').trim();
+
+    // Auto-split if credentials string "user:pass" was passed into username
+    if (cleanUsername.includes(':') && (!cleanPassword || cleanPassword === '')) {
+        const splitIdx = cleanUsername.indexOf(':');
+        cleanPassword = cleanUsername.slice(splitIdx + 1).trim();
+        cleanUsername = cleanUsername.slice(0, splitIdx).trim();
+    }
+
+    if (!cleanUsername || !cleanPassword) {
         throw new Error('Both username and password are required for WordPress authentication.');
     }
 
@@ -67,6 +77,10 @@ async function loginWordPress(page, { username, password, url, baseUrl }, option
                 return !!(u && p);
             }, userSelector, passSelector);
 
+            // Wait briefly for inputs to be attached and visible
+            await page.waitForSelector(userSelector, { visible: true, timeout: 5000 }).catch(() => null);
+            await page.waitForSelector(passSelector, { visible: true, timeout: 5000 }).catch(() => null);
+
             // Resolve element handles directly to prevent WP auto-focus race conditions
             const userEl = await page.$(userSelector);
             const passEl = await page.$(passSelector);
@@ -78,13 +92,27 @@ async function loginWordPress(page, { username, password, url, baseUrl }, option
             formFound = true;
             console.log(`[WordPress Auth] Active login form detected at: ${endpoint}`);
 
-            // Fill username
-            await userEl.click({ clickCount: 3 });
-            await userEl.type(username, { delay: 25 });
+            // WordPress often uses setTimeout(..., 200) to autofocus and select #user_login (wp_attempt_focus).
+            // A small pause guarantees any autofocus scripts have run and will not disrupt typing.
+            await new Promise(r => setTimeout(r, 600));
 
-            // Fill password
-            await passEl.click({ clickCount: 3 });
-            await passEl.type(password, { delay: 25 });
+            // Ensure inputs are visible in viewport
+            await userEl.evaluate(el => el.scrollIntoView({ block: 'center', inline: 'center' })).catch(() => { });
+            await passEl.evaluate(el => el.scrollIntoView({ block: 'center', inline: 'center' })).catch(() => { });
+
+            // Helper to reliably fill input, setting DOM value directly to prevent focus races
+            async function fillInput(element, value) {
+                await element.evaluate((el, val) => {
+                    el.focus();
+                    el.value = val;
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                }, value);
+            }
+
+            // Fill username and password
+            await fillInput(userEl, cleanUsername);
+            await fillInput(passEl, cleanPassword);
 
             // Check remember me checkbox if present
             try {
@@ -92,34 +120,55 @@ async function loginWordPress(page, { username, password, url, baseUrl }, option
                     const remember = document.querySelector('#rememberme, input[name="rememberme"]');
                     if (remember && !remember.checked) remember.checked = true;
                 });
-            } catch (e) {}
+            } catch (e) { }
 
             console.log('[WordPress Auth] Submitting credentials...');
             const submitBtn = await page.$(submitSelector);
 
-            await Promise.race([
-                page.waitForResponse(res => res.request().method() === 'POST', { timeout: 8000 }).catch(() => null),
-                page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => null),
-                submitBtn ? submitBtn.click() : page.keyboard.press('Enter')
+            // Submit credentials and wait for navigation or POST response
+            await Promise.all([
+                Promise.race([
+                    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => null),
+                    page.waitForResponse(res => res.request().method() === 'POST' && res.status() < 400, { timeout: 15000 }).catch(() => null),
+                    new Promise(r => setTimeout(r, 5000))
+                ]),
+                submitBtn ? submitBtn.click().catch(() => page.keyboard.press('Enter')) : page.keyboard.press('Enter')
             ]);
 
-            await new Promise(r => setTimeout(r, 1000));
-            const currentUrl = page.url();
+            await new Promise(r => setTimeout(r, 1500));
 
-            // Jedyne co wystarczy sprawdzić: czy po submicie adres nadal zawiera wp-login.php (nie nastąpiło przekierowanie)
-            if (currentUrl.includes('wp-login.php')) {
-                const errorText = await page.waitForSelector('#login_error, .woocommerce-error, .login-error, .alert-danger', { timeout: 2000 })
-                    .then(el => el.evaluate(e => e.innerText.trim()))
-                    .catch(() => null);
-
-                throw new Error(errorText ? `WordPress login failed: ${errorText}` : 'WordPress login failed: Invalid username or password (remained on wp-login.php).');
+            // 1. Check cookies: if wordpress_logged_in_ cookie is present, login is verified
+            const cookies = await page.cookies();
+            const hasWpCookie = cookies.some(c => c.name.startsWith('wordpress_logged_in_'));
+            if (hasWpCookie) {
+                console.log('[WordPress Auth] Login successful (verified by session cookie)!');
+                return true;
             }
 
-            // Verify login success for custom front-end forms
+            const currentUrl = page.url();
+
+            // 2. Check for explicit error banners or staying on wp-login.php
+            if (currentUrl.includes('wp-login.php') || currentUrl.includes('/login') || currentUrl.includes('/moje-konto')) {
+                const errorText = await page.evaluate(() => {
+                    const errEl = document.querySelector('#login_error, .woocommerce-error, .login-error, .alert-danger, .has-error');
+                    if (errEl && errEl.innerText.trim()) return errEl.innerText.trim();
+                    return null;
+                }).catch(() => null);
+
+                if (errorText) {
+                    throw new Error(`WordPress login failed: ${errorText}`);
+                }
+
+                if (currentUrl.includes('wp-login.php')) {
+                    throw new Error('WordPress login failed: Invalid username or password (remained on wp-login.php).');
+                }
+            }
+
+            // 3. Verify login success for custom front-end forms
             const authResult = await page.evaluate(() => {
                 // Check error containers
                 const errorEl = document.querySelector('#login_error, .woocommerce-error, .sensei-message.error, .login-error, .alert-danger, .has-error');
-                if (errorEl) {
+                if (errorEl && errorEl.innerText.trim()) {
                     return { success: false, error: errorEl.innerText.trim() };
                 }
 
@@ -127,17 +176,13 @@ async function loginWordPress(page, { username, password, url, baseUrl }, option
                 const passField = document.querySelector('input[type="password"]');
                 if (passField) {
                     const bodyText = document.body ? document.body.innerText.toLowerCase() : '';
-                    if (bodyText.includes('błąd') || bodyText.includes('nieprawidłowe') || bodyText.includes('invalid') || bodyText.includes('incorrect password')) {
+                    if (bodyText.includes('błąd') || bodyText.includes('nieprawidłowe') || bodyText.includes('invalid') || bodyText.includes('incorrect password') || bodyText.includes('nieznany adres email')) {
                         return { success: false, error: 'Invalid username or password.' };
                     }
                 }
 
                 return { success: true };
-            });
-
-            // Verify cookies
-            const cookies = await page.cookies();
-            const hasWpCookie = cookies.some(c => c.name.startsWith('wordpress_logged_in_'));
+            }).catch(() => ({ success: true }));
 
             if (!authResult.success) {
                 throw new Error(`WordPress login failed: ${authResult.error || 'Invalid credentials'}`);

@@ -75,6 +75,46 @@ async function extractVideoUrls(page) {
                 }
             }
 
+            // TIER 1: If any video player or stream was found, return immediately
+            if (result.size > 0) {
+                return Array.from(result);
+            }
+
+            // TIER 2: Fallback - Native HTML5 <audio> elements and child <source> tags
+            const audios = Array.from(document.querySelectorAll('audio, [class*="audio"] audio'));
+            for (const audio of audios) {
+                if (audio.src && !audio.src.startsWith('blob:') && !audio.src.startsWith('data:')) {
+                    result.add(audio.src);
+                }
+                const sources = Array.from(audio.querySelectorAll('source[src]'));
+                for (const source of sources) {
+                    if (source.src && !source.src.startsWith('blob:') && !source.src.startsWith('data:')) {
+                        result.add(source.src);
+                    }
+                }
+            }
+
+            if (result.size > 0) {
+                return Array.from(result);
+            }
+
+            // TIER 3: Fallback - Single audio link in lesson content
+            // If there is NO video and NO <audio> tag, but exactly ONE .mp3/.m4a link exists,
+            // treat it as the main lesson audio. If multiple exist, leave them for downloads.
+            const audioExtRegex = /\.(mp3|m4a|wav)(?:[?#]|$)/i;
+            const audioLinks = new Set();
+            const links = Array.from(document.querySelectorAll('a[href]'));
+            for (const link of links) {
+                const href = link.href;
+                if (href && audioExtRegex.test(href) && !href.startsWith('javascript:') && !href.endsWith('#')) {
+                    audioLinks.add(href);
+                }
+            }
+
+            if (audioLinks.size === 1) {
+                result.add(Array.from(audioLinks)[0]);
+            }
+
             return Array.from(result);
         });
 
