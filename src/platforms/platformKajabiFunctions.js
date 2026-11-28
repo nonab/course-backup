@@ -21,7 +21,7 @@ async function login(page, { username, password }) {
     throw new Error('Access blocked by Cloudflare security check. Please export session cookies (.json) or enable "Show browser window" to solve the challenge.');
   }
 
-  const emailSelector = 'input[type="email"], input[name="email"], input[type="text"]';
+  const emailSelector = 'input[type="email"], input[name="email"], input[name="member[email]"], input[type="text"], #member_email';
   try {
     await page.waitForSelector(emailSelector, { timeout: 10000 });
   } catch (e) {
@@ -34,7 +34,7 @@ async function login(page, { username, password }) {
   const loginUrlBefore = page.url();
 
   await page.type(emailSelector, username);
-  await page.type('input[type="password"]', password);
+  await page.type('input[type="password"], input[name="member[password]"], #member_password', password);
 
   const submitBtn = await page.$('button[type="submit"], input[type="submit"], form button');
   if (submitBtn) {
@@ -144,35 +144,115 @@ async function getPaginationInfo(page) {
 
   return paginationInfo;
 }
-async function getLegacyStructure(page, courseUrl) {
-  console.log('getLegacyStructure');
-  const currentUrl = page.url();
-  const isLoginPage = currentUrl.includes('/login') || currentUrl.includes('/sign_in') || await page.$('input[type="password"]');
-  if (isLoginPage) {
-    throw new Error(`Authentication required: Redirected to login page (${currentUrl}) when accessing legacy course structure.`);
+async function getAllPages(page, baseUrl, selector) {
+  const allUrls = new Set([baseUrl]);
+  let currentPage = 1;
+  while (true) {
+    await page.goto(`${baseUrl}?page=${currentPage}`, { waitUntil: "domcontentloaded" });
+    const pageLinks = await page.$$eval(selector, els => els.map(el => el.href).filter(h => h.includes("?page=")));
+    const prevSize = allUrls.size;
+    pageLinks.forEach(link => allUrls.add(link));
+    if (allUrls.size === prevSize) break;
+    currentPage++;
+  }
+  return Array.from(allUrls);
+}
+
+async function getModules(page, baseUrl) {
+  console.log('getting modules for ' + baseUrl);
+  const modulePages = await getAllPages(page, page.url(), 'a[href*="?page="]');
+  const modules = [];
+
+  for (const pageUrl of modulePages) {
+    await page.goto(pageUrl, { waitUntil: "networkidle2" });
+    const pageMods = await page.evaluate(() => {
+      const items = Array.from(document.querySelectorAll(
+        'div.syllabus__item, .category-card, .card, [class*="category"], .post_list_item'
+      ));
+      const found = [];
+      const seen = new Set();
+      for (const el of items) {
+        const a = el.matches('a[href*="/categories/"]') ? el : el.querySelector('a[href*="/categories/"], a');
+        if (!a || !a.href || a.href.endsWith('/categories') || a.href.endsWith('/categories/') || a.href.includes('#')) continue;
+        const titleEl = el.querySelector('p.syllabus__title, h2, h3, .title, [class*="title"]') || a;
+        const title = titleEl ? titleEl.textContent.trim() : '';
+        if (title && !seen.has(a.href)) {
+          seen.add(a.href);
+          found.push({ url: a.href, title });
+        }
+      }
+      return found;
+    });
+    modules.push(...pageMods);
   }
 
-  const courseTitle = await page.evaluate(() => {
-    const el =
-      document.querySelector('h1') ||
-      document.querySelector('h2.product_title_top');
+  return modules.filter((m, i, arr) => arr.findIndex(x => x.url === m.url) === i);
+}
 
+async function getLessons(page, moduleUrl) {
+  const lessonPages = await getAllPages(page, moduleUrl, 'a[href*="?page="]');
+  const lessons = [];
+
+  for (const pageUrl of lessonPages) {
+    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+    const pageLessons = await page.evaluate(() => {
+      // 1. Syllabus items (motyw klasyczny)
+      const syllabusItems = Array.from(document.querySelectorAll('div.syllabus__item'));
+      if (syllabusItems.length > 0) {
+        return syllabusItems.map(item => {
+          const a = item.querySelector('a');
+          const titleEl = item.querySelector('p.syllabus__title');
+          return a && titleEl ? { url: a.href, title: titleEl.textContent.trim() } : null;
+        }).filter(Boolean);
+      }
+
+      // 2. Post list items (motyw z listą postów i kontenerami)
+      const postListItems = Array.from(document.querySelectorAll('div.post_list_item'));
+      if (postListItems.length > 0) {
+        return postListItems.flatMap(item => {
+          const titleEl = item.querySelector('a.post_item_title');
+          const containerTitle = titleEl?.textContent?.trim() || null;
+          const subLinks = Array.from(item.querySelectorAll('.pp_list .l_post a'));
+          if (subLinks.length > 1) {
+            return subLinks.map(a => ({ url: a.href, title: a.textContent.trim() }));
+          }
+          const linkEl = subLinks[0] || titleEl;
+          if (!linkEl) return [];
+          return [{ url: linkEl.href, title: containerTitle || linkEl.textContent.trim() }];
+        });
+      }
+
+      // 3. Fallback: uniwersalny skan linków do postów
+      const seen = new Set();
+      return Array.from(document.querySelectorAll('a.product-outline-post, a[href*="/posts/"]'))
+        .filter(a => a.href && a.href.includes('/posts/') && !a.href.includes('#'))
+        .map(a => {
+          if (seen.has(a.href)) return null;
+          seen.add(a.href);
+          const title = (a.querySelector('.media-body')?.textContent || a.textContent || '').trim().replace(/\s+/g, ' ');
+          return title ? { url: a.href, title } : null;
+        })
+        .filter(Boolean);
+    });
+    lessons.push(...pageLessons);
+  }
+
+  console.log(`found ${lessons.length} lesson(s)`);
+  return lessons;
+}
+
+async function getLegacyStructure(page, courseUrl) {
+  console.log('getLegacyStructure');
+  const courseTitle = await page.evaluate(() => {
+    const el = document.querySelector('h1, h2.product_title_top');
     return el ? el.textContent.trim() : null;
   });
-  console.log(`Course Title: ${courseTitle}`);
 
   if (!courseTitle || /^(zaloguj się|log in|sign in|login|sign up)$/i.test(courseTitle.trim())) {
-    throw new Error(`Authentication required: Encountered login/unauthorized page ("${courseTitle || 'Unknown'}") instead of course contents.`);
+    throw new Error(`Authentication required: Encountered login page ("${courseTitle || 'Unknown'}") instead of course contents.`);
   }
 
   await page.goto(courseUrl + "/categories", { waitUntil: "networkidle0" });
-
-  const catUrl = page.url();
-  if (catUrl.includes('/login') || catUrl.includes('/sign_in') || await page.$('input[type="password"]')) {
-    throw new Error(`Authentication required: Access to course categories redirected to login page (${catUrl}).`);
-  }
-
-  // Extract modules
   console.log("Retrieving modules...");
   const modules = await getModules(page, courseUrl);
 
@@ -181,156 +261,26 @@ async function getLegacyStructure(page, courseUrl) {
   }
 
   const structure = { [courseTitle]: {} };
-
   let modCounter = 1;
   let globalLessonCounter = 1;
 
   for (const module of modules) {
-    const formattedModTitle = `M${String(modCounter).padStart(2, '0')} - ${module.title}`;
+    const formattedModTitle = `M${String(modCounter++).padStart(2, '0')} - ${module.title}`;
     console.log(`Processing module: ${formattedModTitle}`);
     const lessons = await getLessons(page, module.url);
 
-    structure[courseTitle][formattedModTitle] = lessons.map((lesson) => {
-      const formattedLessonTitle = `${String(globalLessonCounter).padStart(3, '0')} - ${formattedModTitle} - ${lesson.title}`;
-      globalLessonCounter++;
-      return {
-        title: formattedLessonTitle,
-        url: lesson.url,
-        "video url(s)": [],
-        referer: lesson.url,
-        html: null,
-        downloads: [],
-      };
-    });
-    modCounter++;
+    structure[courseTitle][formattedModTitle] = lessons.map(lesson => ({
+      title: `${String(globalLessonCounter++).padStart(3, '0')} - ${formattedModTitle} - ${lesson.title}`,
+      url: lesson.url,
+      "video url(s)": [],
+      referer: lesson.url,
+      html: null,
+      downloads: []
+    }));
   }
 
   return structure;
 }
-
-async function getAllPages(page, baseUrl, selector) {
-  let allUrls = new Set(); // Use a set to avoid duplicates
-  let currentPage = 1;
-
-  while (true) {
-    const url = `${baseUrl}?page=${currentPage}`;
-    await page.goto(url, { waitUntil: "domcontentloaded" });
-
-    // Add all pagination links from the current page
-    const pageLinks = await page.$$eval(selector, (elements) =>
-      elements
-        .map((el) => el.href)
-        .filter((href) => href.includes("?page="))
-    );
-
-    // Add links to the set and stop if no new links found
-    const previousSize = allUrls.size;
-    pageLinks.forEach((link) => allUrls.add(link));
-    if (allUrls.size === previousSize) break;
-
-    currentPage++;
-  }
-
-  if (allUrls.size === 0) {
-    allUrls.add(baseUrl);
-  }
-
-  return Array.from(allUrls);
-}
-
-async function getModules(page, baseUrl) {
-  console.log('getting modules for ' + baseUrl);
-  let url = await page.url();
-  const modulePages = await getAllPages(page, url, 'a[href*="?page="]');
-  const modules = [];
-
-  for (const pageUrl of modulePages) {
-    console.log(`Processing module page: ${pageUrl}`);
-    await page.goto(pageUrl, { waitUntil: "networkidle2" });
-
-    const pageModules = await page.$$eval("div.syllabus__item", (items) =>
-      items.map((item) => {
-        const link = item.querySelector("a");
-        const title = item.querySelector("p.syllabus__title");
-        return link && title
-          ? { url: link.href.trim(), title: title.textContent.trim() }
-          : null;
-      }).filter(Boolean)
-    );
-
-    modules.push(...pageModules);
-  }
-
-  return modules;
-}
-
-async function getLessons(page, moduleUrl) {
-  const lessonPages = await getAllPages(page, moduleUrl, 'a[href*="?page="]');
-  const lessons = [];
-
-  for (const pageUrl of lessonPages) {
-    console.log(`Processing lessons page: ${pageUrl}`);
-    await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
-
-    const pageLessons = await page.$$eval("div.syllabus__item", (items) =>
-      items.map((item) => {
-        const link = item.querySelector("a");
-        const title = item.querySelector("p.syllabus__title");
-        return link && title
-          ? { url: link.href.trim(), title: title.textContent.trim() }
-          : null;
-      }).filter(Boolean)
-    );
-
-    lessons.push(...pageLessons);
-  }
-  if (lessons.length === 0) {
-    //post_list_item
-    for (const pageUrl of lessonPages) {
-      console.log(`Processing lessons page: ${pageUrl}`);
-      await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
-
-      const pageLessons = await page.$$eval(
-        "div.post_list_item",
-        items =>
-          items.flatMap(item => {
-            const titleEl = item.querySelector("a.post_item_title");
-            const containerTitle = titleEl?.textContent?.trim() || null;
-
-            const subLinks = Array.from(
-              item.querySelectorAll(".pp_list .l_post a")
-            );
-
-            if (subLinks.length > 1) {
-              return subLinks.map(a => ({
-                url: new URL(a.getAttribute("href"), window.location.origin).href,
-                title: a.textContent.trim(),
-              }));
-            }
-
-            const linkEl =
-              subLinks[0] ||
-              titleEl;
-
-            if (!linkEl) return [];
-
-            return [{
-              url: new URL(linkEl.getAttribute("href"), window.location.origin).href,
-              title: containerTitle || linkEl.textContent.trim()
-            }];
-          })
-      );
-
-      lessons.push(...pageLessons);
-    }
-  }
-
-
-  console.log('found ' + lessons.length + " lesson(s)");
-
-  return lessons;
-}
-
 
 async function getStructure(page, courseUrl) {
   console.log('Extracting course structure...');
@@ -338,90 +288,85 @@ async function getStructure(page, courseUrl) {
   const baseUrl = new URL(page.url()).origin;
 
   const currentUrl = page.url();
-  const isLoginPage = currentUrl.includes('/login') || currentUrl.includes('/sign_in') || await page.$('input[type="password"]');
-  if (isLoginPage) {
+  if (currentUrl.includes('/login') || currentUrl.includes('/sign_in') || await page.$('input[type="password"]')) {
     throw new Error(`Authentication required: Access to course (${courseUrl}) was redirected to login page (${currentUrl}). Please verify your credentials or session cookies.`);
   }
 
-  structure = await page.evaluate((baseUrl) => {
-    const courseTitleElement =
-      document.querySelector('.product-title h1') ||
-      document.querySelector('h1.panel__title');
+  // 1. Ekstrakcja struktury ze strony głównej kursu (motyw dropdown, flat outline oraz bezpośrednie posty)
+  const structure = await page.evaluate((baseUrl) => {
+    const titleEl = document.querySelector('.product-title h1, h1.panel__title, h1, h2.product_title_top');
+    const courseTitle = titleEl ? titleEl.textContent.trim() : 'Untitled Course';
+    const struct = { [courseTitle]: {} };
 
-    const courseTitle = courseTitleElement
-      ? courseTitleElement.textContent.trim()
-      : 'Untitled Course';
+    let modCount = 1;
+    let lessonCount = 1;
+    let curCategory = '';
+    let curModule = '';
 
-    const structure = { [courseTitle]: {} };
+    const outlineItems = Array.from(document.querySelectorAll(
+      'h3.product-outline-category, h3.product-outline-subcategory, a.product-outline-post'
+    ));
 
-    let moduleCounter = 1;
-    let lessonCounter = 1;
+    if (outlineItems.length > 0) {
+      const postsCount = outlineItems.filter(el => el.matches('a.product-outline-post')).length;
+      const digits = postsCount >= 100 ? 3 : 2;
 
-    const lessonLinks = document.querySelectorAll('a.product-outline-post');
-    const lessonNumberDigits = lessonLinks.length >= 100 ? 3 : 2;
+      for (const el of outlineItems) {
+        if (el.matches('h3.product-outline-category')) {
+          curCategory = el.textContent.trim();
+          curModule = curCategory;
+        } else if (el.matches('h3.product-outline-subcategory')) {
+          const sub = el.textContent.trim();
+          curModule = curCategory && curCategory !== sub ? `${curCategory} - ${sub}` : sub;
+        } else if (el.matches('a.product-outline-post')) {
+          const rawMod = curModule || curCategory || 'Wprowadzenie';
+          let modKey = Object.keys(struct[courseTitle]).find(k => k.replace(/^M\d+\s*-\s*/, '') === rawMod);
+          if (!modKey) {
+            modKey = `M${String(modCount++).padStart(2, '0')} - ${rawMod}`;
+            struct[courseTitle][modKey] = [];
+          }
 
-    function processDropdown(dropdown) {
-      const header =
-        dropdown.querySelector(
-          ':scope > h3.product-outline-category, :scope > h3.product-outline-subcategory'
-        );
+          const mediaBody = el.querySelector('.media-body');
+          const title = mediaBody ? mediaBody.textContent.trim() : (el.textContent.trim().replace(/\s+/g, ' ') || 'Untitled Lesson');
+          const url = new URL(el.getAttribute('href'), baseUrl).href;
 
-      if (!header) return;
-
-      const moduleTitle = header.textContent.trim();
-      const moduleName = `M${String(moduleCounter).padStart(2, '0')} - ${moduleTitle}`;
-      moduleCounter++;
-
-      structure[courseTitle][moduleName] = [];
-
-      const content = dropdown.querySelector(':scope > .dropdown-content');
-      if (!content) return;
-
-      Array.from(content.children).forEach((el) => {
-
-        if (el.matches('a.product-outline-post')) {
-          const lessonTitle =
-            el.querySelector('.media-body')?.textContent.trim() ||
-            'Untitled Lesson';
-
-          const lessonUrl = new URL(el.getAttribute('href'), baseUrl).href;
-
-          structure[courseTitle][moduleName].push({
-            title: `${String(lessonCounter).padStart(lessonNumberDigits, '0')} - ${moduleName} - ${lessonTitle}`,
-            url: lessonUrl,
+          struct[courseTitle][modKey].push({
+            title: `${String(lessonCount++).padStart(digits, '0')} - ${modKey} - ${title}`,
+            url,
             referer: null,
             "video url(s)": [],
             html: null,
-            downloads: [],
+            downloads: []
           });
-
-          lessonCounter++;
         }
-
-        if (el.matches('.dropdown.navidropdown')) {
-          processDropdown(el);
-        }
-      });
+      }
+    } else {
+      // Płaski kurs bez outline (bezpośrednie lekcje na stronie głównej)
+      const directPosts = Array.from(document.querySelectorAll('a[href*="/posts/"]'))
+        .filter(a => !a.href.includes('#') && a.textContent.trim());
+      if (directPosts.length > 0) {
+        const modKey = `M01 - ${courseTitle}`;
+        struct[courseTitle][modKey] = directPosts.map((a, idx) => ({
+          title: `${String(idx + 1).padStart(2, '0')} - ${modKey} - ${a.textContent.trim().replace(/\s+/g, ' ')}`,
+          url: new URL(a.getAttribute('href'), baseUrl).href,
+          referer: null,
+          "video url(s)": [],
+          html: null,
+          downloads: []
+        }));
+      }
     }
 
-    const allDropdowns = document.querySelectorAll('.dropdown.navidropdown');
-
-    allDropdowns.forEach(dropdown => {
-      if (!dropdown.closest('.dropdown-content')) {
-        processDropdown(dropdown);
-      }
-    });
-
-    return structure;
+    return struct;
   }, baseUrl);
 
   const courseTitle = Object.keys(structure)[0];
-  const isEmpty = Object.keys(structure[courseTitle]).length === 0;
-
-  if (isEmpty) {
-    return getLegacyStructure(page, courseUrl);
+  if (Object.keys(structure[courseTitle]).length > 0) {
+    return structure;
   }
-  return structure;
+
+  // 2. Fallback na stary motyw /categories
+  return getLegacyStructure(page, courseUrl);
 }
 
 
